@@ -22,6 +22,8 @@ diffity agent general-comment --body "<text>"
 diffity agent resolve <id> [--summary "<text>"]
 diffity agent dismiss <id> [--reason "<text>"]
 diffity agent reply <id> --body "<text>"
+diffity agent description-show [--json]
+diffity agent description-set [--title "<text>"] [--body "<text>" | --body-file <path>]
 ```
 
 - `--file`, `--line`, `--body` are required for `comment`
@@ -29,6 +31,7 @@ diffity agent reply <id> --body "<text>"
 - `--side` defaults to `new`
 - `general-comment` creates a diff-level comment not tied to any file or line
 - `<id>` accepts full UUID or 8-char prefix
+- `description-show`/`description-set` read and write the PR description: synced with GitHub when a PR exists for the current branch, stored as a local draft otherwise
 
 ## Prerequisites
 

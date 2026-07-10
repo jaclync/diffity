@@ -23,6 +23,8 @@ You are reviewing a diff and leaving inline comments using the `{{binary}} agent
 {{binary}} agent resolve <id> [--summary "<text>"]
 {{binary}} agent dismiss <id> [--reason "<text>"]
 {{binary}} agent reply <id> --body "<text>"
+{{binary}} agent description-show [--json]
+{{binary}} agent description-set [--title "<text>"] [--body "<text>" | --body-file <path>]
 ```
 
 - `--file`, `--line`, `--body` are required for `comment`
@@ -30,6 +32,7 @@ You are reviewing a diff and leaving inline comments using the `{{binary}} agent
 - `--side` defaults to `new`
 - `general-comment` creates a diff-level comment not tied to any file or line
 - `<id>` accepts full UUID or 8-char prefix
+- `description-show`/`description-set` read and write the PR description: synced with GitHub when a PR exists for the current branch, stored as a local draft otherwise
 
 ## Prerequisites
 
@@ -60,6 +63,7 @@ The review needs a running session whose ref matches the requested ref. A ref mi
    ```
    This outputs the full unified diff for the current session. Line numbers are in the `@@` hunk headers.
 2. Find and read all relevant CLAUDE.md files — the root CLAUDE.md and any CLAUDE.md files in directories containing modified files. These define project-specific rules that the diff must follow.
+3. **Read the PR description** for intent context: `{{binary}} agent description-show`. If it is missing, inaccurate, or out of date relative to the diff, leave a `[suggestion]` general comment about it (the user can then run **{{slash}}describe** to fix it — do not rewrite the description yourself during a review).
 
 #### Assess the change size and adapt your strategy
 

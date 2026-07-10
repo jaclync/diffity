@@ -22,6 +22,8 @@ You are reading open review comments and resolving them by making the requested 
 {{binary}} agent resolve <id> [--summary "<text>"]
 {{binary}} agent dismiss <id> [--reason "<text>"]
 {{binary}} agent reply <id> --body "<text>"
+{{binary}} agent description-show [--json]
+{{binary}} agent description-set [--title "<text>"] [--body "<text>" | --body-file <path>]
 ```
 
 - `--file`, `--line`, `--body` are required for `comment`
@@ -29,6 +31,7 @@ You are reading open review comments and resolving them by making the requested 
 - `--side` defaults to `new`
 - `general-comment` creates a diff-level comment not tied to any file or line
 - `<id>` accepts full UUID or 8-char prefix
+- `description-show`/`description-set` read and write the PR description: synced with GitHub when a PR exists for the current branch, stored as a local draft otherwise
 
 ## Prerequisites
 
