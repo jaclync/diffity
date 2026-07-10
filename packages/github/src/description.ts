@@ -1,10 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { execAsync } from './exec.js';
+import { runAsync, runWithStdin } from './exec.js';
 import type { PrDescriptionRemote } from './types.js';
 
 export async function fetchPrDescription(): Promise<PrDescriptionRemote | null> {
   try {
-    const json = await execAsync('gh pr view --json number,title,body,url');
+    const json = await runAsync('gh', ['pr', 'view', '--json', 'number,title,body,url']);
     const data = JSON.parse(json);
     if (data.number && data.url) {
       return {
@@ -25,9 +24,5 @@ export function updatePrDescription(prNumber: number, title: string | undefined,
   if (title && title.trim()) {
     args.push('--title', title);
   }
-  execFileSync('gh', args, {
-    input: body,
-    encoding: 'utf-8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  runWithStdin('gh', args, body);
 }

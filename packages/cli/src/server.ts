@@ -76,6 +76,42 @@ export function getHost(): string {
   return process.env.DIFFITY_HOST?.trim() || 'localhost';
 }
 
+// The interface to bind to. Defaults to loopback so the diff viewer is not
+// exposed to the local network. Set DIFFITY_HOST to override (e.g. 0.0.0.0)
+// only if you knowingly want LAN access.
+export function getBindHost(): string {
+  return process.env.DIFFITY_HOST?.trim() || '127.0.0.1';
+}
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+// DNS-rebinding / drive-by defense: a malicious web page can point its own
+// domain at 127.0.0.1 and POST to our routes, but it cannot forge the Host
+// header — it will read the attacker's domain, not localhost. Reject anything
+// whose Host isn't loopback (or an explicitly configured DIFFITY_HOST).
+function isAllowedHost(hostHeader: string | undefined): boolean {
+  if (!hostHeader) {
+    return false;
+  }
+  const host = hostHeader.replace(/:\d+$/, '').toLowerCase();
+  const configured = process.env.DIFFITY_HOST?.trim().toLowerCase();
+  if (configured && host === configured) {
+    return true;
+  }
+  return LOOPBACK_HOSTS.has(host);
+}
+
+function isLoopbackOrigin(origin: string | undefined): boolean {
+  if (!origin) {
+    return false;
+  }
+  try {
+    return LOOPBACK_HOSTS.has(new URL(origin).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 interface ServerOptions {
   port: number;
   portIsExplicit?: boolean;
@@ -178,12 +214,25 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
         const url = new URL(req.url || '/', `http://${getHost()}:${port}`);
         const pathname = url.pathname;
 
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader(
-          'Access-Control-Allow-Methods',
-          'GET, POST, PATCH, DELETE, OPTIONS',
-        );
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        // Reject requests not addressed to loopback (blocks DNS-rebinding and
+        // other cross-origin drive-by attacks against the local server).
+        if (!isAllowedHost(req.headers.host)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Forbidden: diffity only serves loopback requests' }));
+          return;
+        }
+
+        // Only echo CORS back to localhost origins (never a blanket '*').
+        const origin = req.headers.origin;
+        if (isLoopbackOrigin(origin)) {
+          res.setHeader('Access-Control-Allow-Origin', origin!);
+          res.setHeader('Vary', 'Origin');
+          res.setHeader(
+            'Access-Control-Allow-Methods',
+            'GET, POST, PATCH, DELETE, OPTIONS',
+          );
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        }
 
         if (req.method === 'OPTIONS') {
           res.writeHead(204);
@@ -598,7 +647,7 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
         retries++;
         server.close();
         currentPort++;
-        setTimeout(() => server.listen(currentPort), 200);
+        setTimeout(() => server.listen(currentPort, getBindHost()), 200);
       } else if (err.code === 'EADDRINUSE' && portIsExplicit) {
         reject(new Error(`Port ${port} is already in use`));
       } else {
@@ -630,6 +679,6 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
       }
     });
 
-    server.listen(currentPort);
+    server.listen(currentPort, getBindHost());
   });
 }

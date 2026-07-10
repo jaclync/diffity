@@ -1,15 +1,15 @@
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { exec } from './exec.js';
+import { git } from './exec.js';
 import { WORKING_TREE_REFS } from './diff.js';
 import type { RepoInfo } from './types.js';
 
 export function isGitRepo(): boolean {
   try {
-    execSync('git rev-parse --is-inside-work-tree', { stdio: 'pipe' });
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -17,7 +17,7 @@ export function isGitRepo(): boolean {
 }
 
 export function getRepoRoot(): string {
-  return exec('git rev-parse --show-toplevel');
+  return git(['rev-parse', '--show-toplevel']);
 }
 
 export function getRepoName(): string {
@@ -27,7 +27,7 @@ export function getRepoName(): string {
 
 export function getCurrentBranch(): string {
   try {
-    return exec('git rev-parse --abbrev-ref HEAD');
+    return git(['rev-parse', '--abbrev-ref', 'HEAD']);
   } catch {
     return 'HEAD';
   }
@@ -42,7 +42,7 @@ export function getRepoInfo(): RepoInfo {
 }
 
 export function getHeadHash(): string {
-  return exec('git rev-parse HEAD');
+  return git(['rev-parse', 'HEAD']);
 }
 
 export function getDiffityDirPath(): string {

@@ -1,37 +1,42 @@
-import { execSync, exec as execCb } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execPromise = promisify(execCb);
+const execFilePromise = promisify(execFile);
+const MAX_BUFFER = 10 * 1024 * 1024;
 
-// Async variant for server hot paths: execSync blocks the whole event loop
-// for the duration of a network round-trip, stalling every other request.
-export async function execAsync(cmd: string): Promise<string> {
-  const { stdout } = await execPromise(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
-  return stdout.trim();
-}
+// All helpers invoke the program directly with an argv array — NO shell —
+// so no argument (owner/repo/ref/PR number) can be interpreted as a shell
+// metacharacter. Async variants are used on server hot paths so a slow
+// network round-trip doesn't block the event loop.
 
-export function exec(cmd: string): string {
-  return execSync(cmd, {
+export function run(file: string, args: string[]): string {
+  return execFileSync(file, args, {
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: MAX_BUFFER,
   }).trim();
 }
 
-export function execJson<T>(cmd: string): T | null {
-  try {
-    const raw = exec(cmd);
-    if (!raw) {
-      return null;
-    }
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
+export async function runAsync(file: string, args: string[]): Promise<string> {
+  const { stdout } = await execFilePromise(file, args, {
+    encoding: 'utf-8',
+    maxBuffer: MAX_BUFFER,
+  });
+  return stdout.trim();
 }
 
-export function execSilent(cmd: string): boolean {
+export function runWithStdin(file: string, args: string[], input: string): string {
+  return execFileSync(file, args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input,
+    maxBuffer: MAX_BUFFER,
+  }).trim();
+}
+
+export function runSilent(file: string, args: string[]): boolean {
   try {
-    execSync(cmd, { stdio: 'pipe' });
+    execFileSync(file, args, { stdio: 'pipe' });
     return true;
   } catch {
     return false;

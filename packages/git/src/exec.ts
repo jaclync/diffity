@@ -1,35 +1,42 @@
-import { execSync, type StdioOptions } from 'node:child_process';
+import { execFileSync, type StdioOptions } from 'node:child_process';
 
 const STDIO: StdioOptions = ['pipe', 'pipe', 'pipe'];
+const MAX_BUFFER = 50 * 1024 * 1024;
 
-export function execWithStdin(cmd: string, input: string): string {
-  return execSync(cmd, {
-    encoding: 'utf-8',
-    stdio: STDIO,
-    input,
-    maxBuffer: 50 * 1024 * 1024,
-  });
-}
+// Every helper invokes `git` directly with an argv array via execFileSync —
+// NO shell is spawned. User-controlled refs, paths, and search text therefore
+// cannot be interpreted as shell metacharacters, which closes the command
+// injection class entirely (a value like "foo`rm -rf ~`" is passed to git as
+// one literal argument, not parsed by a shell).
 
-export function exec(cmd: string): string {
-  return execSync(cmd, {
+export function git(args: string[]): string {
+  return execFileSync('git', args, {
     encoding: 'utf-8',
     stdio: STDIO,
   }).trim();
 }
 
-export function execLarge(cmd: string): string {
-  return execSync(cmd, {
+export function gitLarge(args: string[]): string {
+  return execFileSync('git', args, {
     encoding: 'utf-8',
     stdio: STDIO,
-    maxBuffer: 50 * 1024 * 1024,
+    maxBuffer: MAX_BUFFER,
   });
 }
 
-export function execLines(cmd: string): string[] {
-  const output = exec(cmd);
+export function gitLines(args: string[]): string[] {
+  const output = git(args);
   if (!output) {
     return [];
   }
   return output.split('\n');
+}
+
+export function gitWithStdin(args: string[], input: string): string {
+  return execFileSync('git', args, {
+    encoding: 'utf-8',
+    stdio: STDIO,
+    input,
+    maxBuffer: MAX_BUFFER,
+  });
 }
