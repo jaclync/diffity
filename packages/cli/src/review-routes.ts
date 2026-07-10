@@ -13,28 +13,31 @@ import {
 } from './threads.js';
 import { getCurrentSession } from './session.js';
 import { getDescriptionState, saveDescription } from './descriptions.js';
-import { sendJson, sendError, withJsonBody } from './http-utils.js';
+import { sendJson, sendError, readBody, withJsonBody } from './http-utils.js';
 
 export function handleReviewRoute(req: IncomingMessage, res: ServerResponse, pathname: string, url: URL): boolean {
   if (pathname === '/api/description' && req.method === 'GET') {
-    try {
-      sendJson(res, getDescriptionState());
-    } catch (err) {
-      sendError(res, 500, `Failed to get description: ${err}`);
-    }
+    getDescriptionState()
+      .then((state) => sendJson(res, state))
+      .catch((err) => sendError(res, 500, `Failed to get description: ${err}`));
     return true;
   }
 
   if (pathname === '/api/description' && req.method === 'PUT') {
-    withJsonBody(res, req, 'Failed to save description', (body) => {
-      const { title, body: descBody } = body;
-      if (typeof descBody !== 'string') {
-        sendError(res, 400, 'Missing body');
-        return;
+    (async () => {
+      try {
+        const body = JSON.parse(await readBody(req));
+        const { title, body: descBody } = body;
+        if (typeof descBody !== 'string') {
+          sendError(res, 400, 'Missing body');
+          return;
+        }
+        const result = await saveDescription({ title: title as string | undefined, body: descBody });
+        sendJson(res, result);
+      } catch (err) {
+        sendError(res, 500, `Failed to save description: ${err}`);
       }
-      const result = saveDescription({ title: title as string | undefined, body: descBody });
-      sendJson(res, result);
-    });
+    })();
     return true;
   }
 

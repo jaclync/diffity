@@ -1,4 +1,14 @@
-import { execSync } from 'node:child_process';
+import { execSync, exec as execCb } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execPromise = promisify(execCb);
+
+// Async variant for server hot paths: execSync blocks the whole event loop
+// for the duration of a network round-trip, stalling every other request.
+export async function execAsync(cmd: string): Promise<string> {
+  const { stdout } = await execPromise(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+  return stdout.trim();
+}
 
 export function exec(cmd: string): string {
   return execSync(cmd, {

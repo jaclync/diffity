@@ -2,7 +2,6 @@ import { getCurrentBranch } from '@diffity/git';
 import {
   detectRemote,
   isCliInstalled,
-  isAuthenticated,
   fetchPrDescription,
   updatePrDescription,
   type PrDescriptionRemote,
@@ -48,14 +47,16 @@ function saveLocalDraft(branch: string, title: string, body: string): void {
 
 let githubAvailable: boolean | null = null;
 
+// Deliberately no `gh auth status` here — it makes a network round-trip.
+// An unauthenticated `gh pr view` simply fails and we fall back to local.
 function canUseGitHub(): boolean {
   if (githubAvailable === null) {
-    githubAvailable = !!detectRemote() && isCliInstalled() && isAuthenticated();
+    githubAvailable = !!detectRemote() && isCliInstalled();
   }
   return githubAvailable;
 }
 
-function getRemote(local: LocalDraft | null): PrDescriptionRemote | null {
+async function getRemote(local: LocalDraft | null): Promise<PrDescriptionRemote | null> {
   if (!canUseGitHub()) {
     return null;
   }
@@ -67,7 +68,7 @@ function getRemote(local: LocalDraft | null): PrDescriptionRemote | null {
   if (cacheValid && !localIsNewer) {
     return remoteCache!.value;
   }
-  remoteCache = { value: fetchPrDescription(), fetchedAt: now };
+  remoteCache = { value: await fetchPrDescription(), fetchedAt: now };
   return remoteCache.value;
 }
 
@@ -75,10 +76,10 @@ export function invalidateRemoteCache(): void {
   remoteCache = null;
 }
 
-export function getDescriptionState(): DescriptionState {
+export async function getDescriptionState(): Promise<DescriptionState> {
   const branch = getCurrentBranch();
   const local = getLocalDraft(branch);
-  const remote = getRemote(local);
+  const remote = await getRemote(local);
 
   if (remote) {
     // Keep an unpushed local draft visible when the PR body is still empty
@@ -118,10 +119,10 @@ export function getDescriptionState(): DescriptionState {
   };
 }
 
-export function saveDescription(input: { title?: string; body: string }): DescriptionState & { synced: boolean } {
+export async function saveDescription(input: { title?: string; body: string }): Promise<DescriptionState & { synced: boolean }> {
   const branch = getCurrentBranch();
   const local = getLocalDraft(branch);
-  const remote = canUseGitHub() ? fetchPrDescription() : null;
+  const remote = canUseGitHub() ? await fetchPrDescription() : null;
   const title = input.title ?? remote?.title ?? local?.title ?? '';
 
   saveLocalDraft(branch, title, input.body);

@@ -60,6 +60,15 @@ export function DiffPage() {
       .catch(() => {});
   }, [info?.github]);
 
+  // Disambiguate browser tabs when several instances run in different repos.
+  useEffect(() => {
+    if (!info?.name) {
+      return;
+    }
+    const port = window.location.port ? ` :${window.location.port}` : '';
+    document.title = `${info.name} @ ${info.description}${port} · diffity`;
+  }, [info?.name, info?.description]);
+
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
   const threads = reviewsEnabled && serverThreads ? serverThreads : [];
   const commentActions = useCommentActions(sessionId, reviewsEnabled);

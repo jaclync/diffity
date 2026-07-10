@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { exec } from './exec.js';
+import { execAsync } from './exec.js';
 import type { PrDescriptionRemote } from './types.js';
 
-export function fetchPrDescription(): PrDescriptionRemote | null {
+export async function fetchPrDescription(): Promise<PrDescriptionRemote | null> {
   try {
-    const json = exec('gh pr view --json number,title,body,url');
+    const json = await execAsync('gh pr view --json number,title,body,url');
     const data = JSON.parse(json);
     if (data.number && data.url) {
       return {

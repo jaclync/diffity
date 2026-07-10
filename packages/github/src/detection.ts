@@ -1,4 +1,4 @@
-import { exec, execSilent } from './exec.js';
+import { exec, execAsync, execSilent } from './exec.js';
 import type { GitHubRemote, GitHubDetails } from './types.js';
 
 export function getRemote(): { owner: string; repo: string } | null {
@@ -30,17 +30,17 @@ export function detectRemote(): GitHubRemote | null {
   return remote;
 }
 
-export function fetchDetails(owner: string, repo: string): GitHubDetails | null {
-  if (!isCliInstalled() || !isAuthenticated()) {
+export async function fetchDetails(owner: string, repo: string): Promise<GitHubDetails | null> {
+  if (!isCliInstalled()) {
     return null;
   }
 
-  const pr = getPr();
+  const pr = await getPr();
   if (!pr) {
     return null;
   }
 
-  const commentCount = getReviewCommentCount(owner, repo, pr.number);
+  const commentCount = await getReviewCommentCount(owner, repo, pr.number);
 
   return {
     prNumber: pr.number,
@@ -60,9 +60,9 @@ interface PrData {
   createdAt: string;
 }
 
-function getPr(): PrData | null {
+async function getPr(): Promise<PrData | null> {
   try {
-    const json = exec('gh pr view --json number,title,url,headRefOid,createdAt');
+    const json = await execAsync('gh pr view --json number,title,url,headRefOid,createdAt');
     const data = JSON.parse(json);
     if (data.number && data.url && data.headRefOid) {
       return {
@@ -79,9 +79,9 @@ function getPr(): PrData | null {
   }
 }
 
-function getReviewCommentCount(owner: string, repo: string, prNumber: number): number {
+async function getReviewCommentCount(owner: string, repo: string, prNumber: number): Promise<number> {
   try {
-    const raw = exec(
+    const raw = await execAsync(
       `gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'length'`,
     );
     return parseInt(raw, 10) || 0;

@@ -23,6 +23,7 @@ You are reviewing a diff and leaving inline comments using the `{{binary}} agent
 {{binary}} agent resolve <id> [--summary "<text>"]
 {{binary}} agent dismiss <id> [--reason "<text>"]
 {{binary}} agent reply <id> --body "<text>"
+{{binary}} agent edit <id> [--file <path>] [--line <n>] [--end-line <n>] [--side new|old] [--body "<text>"]
 {{binary}} agent description-show [--json]
 {{binary}} agent description-set [--title "<text>"] [--body "<text>" | --body-file <path>]
 ```
@@ -32,6 +33,7 @@ You are reviewing a diff and leaving inline comments using the `{{binary}} agent
 - `--side` defaults to `new`
 - `general-comment` creates a diff-level comment not tied to any file or line
 - `<id>` accepts full UUID or 8-char prefix
+- `edit` re-anchors a thread and/or rewords its first comment in place — use it instead of dismiss-and-recreate so the thread ID and history stay stable
 - `description-show`/`description-set` read and write the PR description: synced with GitHub when a PR exists for the current branch, stored as a local draft otherwise
 
 ## Prerequisites

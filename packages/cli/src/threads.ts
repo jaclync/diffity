@@ -260,6 +260,61 @@ export function deleteAllThreadsForSession(sessionId: string): void {
   db.prepare('DELETE FROM comment_threads WHERE session_id = ?').run(sessionId);
 }
 
+export interface StrandedThreads {
+  ref: string;
+  headHash: string;
+  sessionId: string;
+  count: number;
+}
+
+export function getThreadCountsOutsideSession(sessionId: string): StrandedThreads[] {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT s.ref AS ref, s.head_hash AS head_hash, s.id AS session_id, COUNT(t.id) AS count
+    FROM comment_threads t
+    JOIN review_sessions s ON s.id = t.session_id
+    WHERE t.session_id != ?
+    GROUP BY s.id
+    ORDER BY s.created_at DESC
+  `).all(sessionId) as { ref: string; head_hash: string; session_id: string; count: number }[];
+  return rows.map(r => ({ ref: r.ref, headHash: r.head_hash, sessionId: r.session_id, count: r.count }));
+}
+
+export interface ThreadAnchorUpdate {
+  filePath?: string;
+  side?: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+export function updateThreadAnchor(threadId: string, anchor: ThreadAnchorUpdate): void {
+  const db = getDb();
+  const sets: string[] = [];
+  const params: (string | number)[] = [];
+  if (anchor.filePath !== undefined) {
+    sets.push('file_path = ?');
+    params.push(anchor.filePath);
+  }
+  if (anchor.side !== undefined) {
+    sets.push('side = ?');
+    params.push(anchor.side);
+  }
+  if (anchor.startLine !== undefined) {
+    sets.push('start_line = ?');
+    params.push(anchor.startLine);
+  }
+  if (anchor.endLine !== undefined) {
+    sets.push('end_line = ?');
+    params.push(anchor.endLine);
+  }
+  if (sets.length === 0) {
+    return;
+  }
+  sets.push('updated_at = ?', 'anchor_content = NULL');
+  params.push(new Date().toISOString());
+  db.prepare(`UPDATE comment_threads SET ${sets.join(', ')} WHERE id = ?`).run(...params, threadId);
+}
+
 export function editComment(commentId: string, body: string): void {
   const db = getDb();
   db.prepare('UPDATE comments SET body = ? WHERE id = ?').run(unescapeMarkdown(body), commentId);

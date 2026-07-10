@@ -33,6 +33,15 @@ export function findOrCreateSession(ref: string): Session {
     'INSERT INTO review_sessions (id, ref, head_hash) VALUES (?, ?, ?)'
   ).run(id, ref, headHash);
 
+  // Sessions are keyed by (ref, head_hash), so every new commit gets a fresh
+  // session. Carry threads forward from prior sessions of the same ref so
+  // review history (open threads, resolve summaries) survives iterations
+  // instead of being stranded under the old head.
+  db.prepare(`
+    UPDATE comment_threads SET session_id = ?
+    WHERE session_id IN (SELECT id FROM review_sessions WHERE ref = ? AND id != ?)
+  `).run(id, ref, id);
+
   const session: Session = { id, ref, headHash };
   writeFileSync(sessionFilePath(), JSON.stringify(session));
   return session;

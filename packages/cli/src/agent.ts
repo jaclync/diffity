@@ -2,14 +2,17 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import type { Command } from 'commander';
 import pc from 'picocolors';
-import { isGitRepo, getDiffFiles, resolveRef, getRepoRoot } from '@diffity/git';
+import { isGitRepo, getDiffFiles, resolveRef, getRepoRoot, getRepoName, getHeadHash } from '@diffity/git';
 import { getCurrentSession } from './session.js';
 import {
   createThread,
   getThreadsForSession,
+  getThreadCountsOutsideSession,
   getThread,
   addReply,
   updateThreadStatus,
+  updateThreadAnchor,
+  editComment,
   type ThreadStatus,
   type Thread,
 } from './threads.js';
@@ -28,6 +31,20 @@ function requireSession() {
     console.error(pc.dim('Start diffity first to create a session.'));
     process.exit(1);
   }
+
+  // Always show which repo/session this command targets — with several
+  // instances running it is otherwise easy to hit the wrong one.
+  console.error(pc.dim(`→ ${getRepoName()} @ ${session.ref} (session ${session.id.slice(0, 8)})`));
+
+  const currentHead = getHeadHash();
+  if (currentHead !== session.headHash) {
+    console.error(pc.yellow(
+      `⚠ Session head ${session.headHash.slice(0, 7)} differs from current HEAD ${currentHead.slice(0, 7)} — ` +
+      `new commits were made since this session started. Threads carry forward automatically ` +
+      `once the viewer refreshes or diffity is rerun for this ref.`,
+    ));
+  }
+
   return session;
 }
 
@@ -93,6 +110,7 @@ Examples:
   $ diffity agent comment --file src/app.ts --line 42 --body "Missing null check"
   $ diffity agent resolve abc123 --summary "Added null check"
   $ diffity agent reply abc123 --body "Good catch, fixed"
+  $ diffity agent edit abc123 --line 58 --body "Corrected comment text"
   $ diffity agent general-comment --body "Overall this looks good, just a few nits"
   $ diffity agent description-show
   $ diffity agent description-set --title "Fix login crash" --body-file /tmp/desc.md
@@ -121,6 +139,15 @@ Examples:
 
       if (threads.length === 0) {
         console.log(pc.dim('No threads found.'));
+        const stranded = getThreadCountsOutsideSession(session.id);
+        if (stranded.length > 0) {
+          const total = stranded.reduce((sum, s) => sum + s.count, 0);
+          console.log(pc.yellow(`However, ${total} thread(s) exist under other sessions in this repo:`));
+          for (const s of stranded.slice(0, 5)) {
+            console.log(pc.dim(`  ${s.count} thread(s) for ${s.ref} @ ${s.headHash.slice(0, 7)} (session ${s.sessionId.slice(0, 8)})`));
+          }
+          console.log(pc.dim('Threads carry forward automatically when diffity runs for the same ref — rerun diffity <ref> to pick them up.'));
+        }
         return;
       }
 
@@ -198,6 +225,66 @@ Examples:
     });
 
   agent
+    .command('edit')
+    .description('Edit a thread in place: re-anchor it (file/line/side) and/or reword its first comment, keeping the thread ID and history stable')
+    .argument('<thread-id>', 'Thread ID (or 8-char prefix)')
+    .option('--file <path>', 'Move the thread to this file (relative to repo root)')
+    .option('--line <n>', 'Move the thread to this start line (1-indexed)', parseInt)
+    .option('--end-line <n>', 'New end line (defaults to --line when moving)', parseInt)
+    .option('--side <side>', 'Which side of the diff (new or old)')
+    .option('--body <text>', 'Replace the body of the thread\'s first comment')
+    .action((id: string, opts) => {
+      const session = requireSession();
+      const thread = resolveThreadId(id, session.id);
+      const isGeneral = thread.filePath === '__general__';
+      const hasAnchorChange = opts.file !== undefined || opts.line !== undefined || opts.endLine !== undefined || opts.side !== undefined;
+
+      if (!hasAnchorChange && opts.body === undefined) {
+        console.error(pc.red('Error: Nothing to edit. Provide --body and/or --file/--line/--end-line/--side.'));
+        process.exit(1);
+      }
+      if (isGeneral && hasAnchorChange) {
+        console.error(pc.red('Error: General comments have no anchor — only --body can be edited.'));
+        process.exit(1);
+      }
+      if (opts.side !== undefined && opts.side !== 'new' && opts.side !== 'old') {
+        console.error(pc.red(`Error: Invalid side "${opts.side}". Must be "new" or "old"`));
+        process.exit(1);
+      }
+
+      if (hasAnchorChange) {
+        const targetFile = opts.file ?? thread.filePath;
+        assertFileExists(targetFile);
+        if (session.ref !== '__tree__') {
+          const diffFiles = getDiffFiles(session.ref);
+          if (!diffFiles.includes(targetFile)) {
+            console.error(pc.red(`Error: File "${targetFile}" is not in the current diff.`));
+            process.exit(1);
+          }
+        }
+        const startLine = opts.line ?? thread.startLine;
+        const endLine = opts.endLine ?? (opts.line !== undefined ? opts.line : thread.endLine);
+        updateThreadAnchor(thread.id, {
+          filePath: opts.file,
+          side: opts.side,
+          startLine: opts.line !== undefined ? startLine : undefined,
+          endLine: opts.line !== undefined || opts.endLine !== undefined ? endLine : undefined,
+        });
+      }
+
+      if (opts.body !== undefined) {
+        const firstComment = thread.comments[0];
+        if (!firstComment) {
+          console.error(pc.red('Error: Thread has no comments to edit.'));
+          process.exit(1);
+        }
+        editComment(firstComment.id, opts.body);
+      }
+
+      console.log(pc.green(`Edited thread ${thread.id.slice(0, 8)}`));
+    });
+
+  agent
     .command('reply')
     .description('Reply to a comment thread')
     .argument('<thread-id>', 'Thread ID (or 8-char prefix)')
@@ -245,12 +332,12 @@ Examples:
     .command('description-show')
     .description('Show the PR description (from GitHub if a PR exists, otherwise the local draft)')
     .option('--json', 'Output as JSON')
-    .action((opts) => {
+    .action(async (opts) => {
       if (!isGitRepo()) {
         console.error(pc.red('Error: Not a git repository'));
         process.exit(1);
       }
-      const state = getDescriptionState();
+      const state = await getDescriptionState();
       if (opts.json) {
         console.log(JSON.stringify(state, null, 2));
         return;
@@ -271,7 +358,7 @@ Examples:
     .option('--body <text>', 'Description body in markdown')
     .option('--body-file <path>', 'Read the body from a file ("-" for stdin)')
     .option('--json', 'Output as JSON')
-    .action((opts) => {
+    .action(async (opts) => {
       if (!isGitRepo()) {
         console.error(pc.red('Error: Not a git repository'));
         process.exit(1);
@@ -293,7 +380,7 @@ Examples:
       }
       let result;
       try {
-        result = saveDescription({ title: opts.title, body });
+        result = await saveDescription({ title: opts.title, body });
       } catch (err) {
         console.error(pc.red(`Error: Failed to save description: ${err}`));
         process.exit(1);

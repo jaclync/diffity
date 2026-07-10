@@ -80,24 +80,49 @@ range syntax (main..feature, main...feature) also work.`)
       process.exit(1);
     }
 
-    // When the first positional is a PR URL, `passThroughOptions()` above slurps any
-    // trailing flags (e.g. `diffity <url> --no-open`) into `refs` as positional args.
-    // Without this reparse, `refs.length === 1` would be false and the PR URL path
-    // would be skipped, producing a confusing "not a valid git reference" error.
-    if (refs.length > 1 && isGitHubPrUrl(refs[0])) {
-      const extras = refs.splice(1);
-      for (const arg of extras) {
+    // `passThroughOptions()` above slurps any flags that appear after the first
+    // positional (e.g. `diffity main --no-open`) into `refs` as positional args.
+    // Reparse them here so option order doesn't matter — without this, trailing
+    // flags produce a confusing "not a valid git reference" error.
+    let portFromReparse = false;
+    {
+      const positionals: string[] = [];
+      const takeValue = (flag: string, inlineValue: string | undefined, next: () => string | undefined): string => {
+        const value = inlineValue ?? next();
+        if (value === undefined) {
+          console.error(pc.red(`Error: ${flag} requires a value.`));
+          process.exit(1);
+        }
+        return value;
+      };
+      for (let i = 0; i < refs.length; i++) {
+        let arg = refs[i];
+        if (!arg.startsWith('--')) {
+          positionals.push(arg);
+          continue;
+        }
+        let inlineValue: string | undefined;
+        const eq = arg.indexOf('=');
+        if (eq !== -1) {
+          inlineValue = arg.slice(eq + 1);
+          arg = arg.slice(0, eq);
+        }
         switch (arg) {
           case '--no-open': opts.open = false; break;
           case '--quiet': opts.quiet = true; break;
           case '--dark': opts.dark = true; break;
           case '--unified': opts.unified = true; break;
           case '--new': opts.new = true; break;
+          case '--port': opts.port = takeValue(arg, inlineValue, () => refs[++i]); portFromReparse = true; break;
+          case '--base': opts.base = takeValue(arg, inlineValue, () => refs[++i]); break;
+          case '--compare': opts.compare = takeValue(arg, inlineValue, () => refs[++i]); break;
           default:
-            console.error(pc.red(`Error: Unexpected argument after PR URL: ${arg}`));
+            console.error(pc.red(`Error: Unknown option: ${arg}`));
+            console.log(`Run ${pc.cyan('diffity --help')} for available options.`);
             process.exit(1);
         }
       }
+      refs.splice(0, refs.length, ...positionals);
     }
 
     if (refs.length === 1 && isGitHubPrUrl(refs[0])) {
@@ -269,7 +294,7 @@ range syntax (main..feature, main...feature) also work.`)
       }
     }
 
-    const explicitPort = program.getOptionValueSource('port') === 'cli';
+    const explicitPort = program.getOptionValueSource('port') === 'cli' || portFromReparse;
     const port = explicitPort ? parseInt(opts.port, 10) : findAvailablePort();
 
     try {

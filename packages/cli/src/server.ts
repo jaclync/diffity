@@ -389,13 +389,13 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
             sendJson(res, null);
             return;
           }
-          const details = fetchGitHubDetails(githubRemote.owner, githubRemote.repo);
+          const details = await fetchGitHubDetails(githubRemote.owner, githubRemote.repo);
           sendJson(res, details);
           return;
         }
 
         if (pathname === '/api/github/push-comments' && req.method === 'POST') {
-          const details = githubRemote ? fetchGitHubDetails(githubRemote.owner, githubRemote.repo) : null;
+          const details = githubRemote ? await fetchGitHubDetails(githubRemote.owner, githubRemote.repo) : null;
           if (!githubRemote || !details?.headSha) {
             sendError(res, 400, 'No GitHub PR detected');
             return;
@@ -431,7 +431,7 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
             sendError(res, 400, 'No GitHub repo detected');
             return;
           }
-          const details = fetchGitHubDetails(githubRemote.owner, githubRemote.repo);
+          const details = await fetchGitHubDetails(githubRemote.owner, githubRemote.repo);
           if (!details) {
             sendError(res, 400, 'No GitHub PR detected');
             return;
