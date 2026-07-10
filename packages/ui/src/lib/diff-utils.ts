@@ -297,3 +297,21 @@ export function getStatusColor(status: string): string {
       return 'bg-modified/15 text-modified';
   }
 }
+
+// Stable content fingerprint for a file's diff — used to invalidate "viewed"
+// marks when the file's changes differ from when it was marked (GitHub behavior).
+export function fileFingerprint(file: DiffFile): string {
+  let hash = 5381;
+  const feed = (s: string) => {
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) + hash + s.charCodeAt(i)) | 0;
+    }
+  };
+  for (const hunk of file.hunks) {
+    feed(hunk.header ?? '');
+    for (const line of hunk.lines) {
+      feed(line.type + (line.content ?? ''));
+    }
+  }
+  return (hash >>> 0).toString(36);
+}

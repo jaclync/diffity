@@ -329,3 +329,28 @@ export async function saveDescription(input: { title?: string; body: string }): 
     body: JSON.stringify(input),
   });
 }
+
+export interface ReviewedFileEntry {
+  filePath: string;
+  fingerprint: string;
+}
+
+export async function fetchReviewedFiles(sessionId: string): Promise<ReviewedFileEntry[]> {
+  return apiFetch(buildUrl('/api/reviewed-files', { session: sessionId }));
+}
+
+export async function putReviewedFile(sessionId: string, filePath: string, fingerprint: string): Promise<void> {
+  return apiVoid('/api/reviewed-files', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, filePath, fingerprint }),
+  });
+}
+
+export async function deleteReviewedFile(sessionId: string, filePath: string): Promise<void> {
+  return apiVoid('/api/reviewed-files', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, filePath }),
+  });
+}

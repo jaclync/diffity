@@ -81,6 +81,14 @@ function migrateDb(db: Database.Database): void {
       body TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS reviewed_files (
+      session_id TEXT NOT NULL REFERENCES review_sessions(id),
+      file_path TEXT NOT NULL,
+      fingerprint TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (session_id, file_path)
+    );
   `);
 }
 

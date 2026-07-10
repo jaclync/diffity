@@ -17,6 +17,10 @@ import {
   treeEntriesOptions,
   tourOptions,
 } from '../../queries/tree';
+import { diffOptions } from '../../queries/diff';
+import { getFilePath } from '../../lib/diff-utils';
+import { useHighlighter } from '../../hooks/use-highlighter';
+import { FileBlock } from '../diff/file-block';
 import { useTheme } from '../../hooks/use-theme';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
@@ -136,7 +140,7 @@ export function TreePage(props: TreePageProps) {
   );
 
   const [focusedThreadId, setFocusedThreadId] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState<'preview' | 'code'>('preview');
+  const [previewMode, setPreviewMode] = useState<'preview' | 'code' | 'diff'>('preview');
   const tourStepIndex = tourStepIndexProp ?? 0;
   const [tourScrollTick, setTourScrollTick] = useState(0);
   const [tourSubHighlight, setTourSubHighlight] = useState<{
@@ -196,6 +200,20 @@ export function TreePage(props: TreePageProps) {
   });
 
   const contentFetching = isFileMode ? fileFetching : entriesFetching;
+
+  // Working-tree diff, used to offer a "Diff" mode for files with changes.
+  const { highlight } = useHighlighter();
+  const { data: workDiff } = useQuery({
+    ...diffOptions(false, 'work'),
+    enabled: isFileMode,
+    staleTime: 10_000,
+  });
+  const changedFile = useMemo(() => {
+    if (!isFileMode || !workDiff) {
+      return null;
+    }
+    return workDiff.files.find((f) => getFilePath(f) === navPath) ?? null;
+  }, [isFileMode, workDiff, navPath]);
 
   const commentCountsByFile = useMemo(() => {
     const map = new Map<string, number>();
@@ -514,7 +532,7 @@ export function TreePage(props: TreePageProps) {
                 )}
               </span>
             ))}
-            {isFileMode && fileContent && isRenderableFile(navPath) && (
+            {isFileMode && fileContent && (isRenderableFile(navPath) || changedFile) && (
               <div className='ml-3 -mr-2'>
                 <SegmentedToggle
                   options={[
@@ -523,14 +541,19 @@ export function TreePage(props: TreePageProps) {
                       label: 'Code',
                       icon: <CodeIcon className='w-3 h-3' />,
                     },
-                    {
+                    ...(isRenderableFile(navPath) ? [{
                       value: 'preview',
                       label: 'Preview',
                       icon: <FileIcon className='w-3 h-3' />,
-                    },
+                    }] : []),
+                    ...(changedFile ? [{
+                      value: 'diff',
+                      label: 'Diff',
+                      icon: <GitBranchIcon className='w-3 h-3' />,
+                    }] : []),
                   ]}
                   value={previewMode}
-                  onChange={setPreviewMode}
+                  onChange={(value) => setPreviewMode(value as 'preview' | 'code' | 'diff')}
                 />
               </div>
             )}
@@ -547,7 +570,26 @@ export function TreePage(props: TreePageProps) {
 
           {isFileMode ? (
             fileContent ? (
-              isRenderableFile(navPath) && previewMode === 'preview' ? (
+              previewMode === 'diff' && changedFile ? (
+                <div className='-mx-2'>
+                  <FileBlock
+                    file={changedFile}
+                    viewMode='unified'
+                    collapsed={false}
+                    onToggleCollapse={() => {}}
+                    reviewed={false}
+                    onReviewedChange={() => {}}
+                    highlightLine={(code) => highlight(code, navPath, theme)}
+                    baseRef='work'
+                    threads={[]}
+                    commentsEnabled={false}
+                    commentActions={commentActions}
+                    onAddThread={() => {}}
+                    pendingSelection={null}
+                    onPendingSelectionChange={() => {}}
+                  />
+                </div>
+              ) : isRenderableFile(navPath) && previewMode === 'preview' ? (
                 isMarkdownFile(navPath) ? (
                   <MarkdownPreview content={fileContent} filePath={navPath} />
                 ) : (

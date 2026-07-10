@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useLoaderData } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
@@ -15,10 +15,10 @@ import { StaleDiffBanner } from '../layout/stale-diff-banner';
 import { CheckCircleIcon } from '../icons/check-circle-icon';
 import { PageLoader } from '../layout/skeleton';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
-import { type ViewMode, getFilePath, getAutoCollapsedPaths } from '../../lib/diff-utils';
+import { type ViewMode, getFilePath, getAutoCollapsedPaths, fileFingerprint } from '../../lib/diff-utils';
 import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
 import { getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
-import { fetchGitHubDetails, type GitHubDetails } from '../../lib/api';
+import { fetchGitHubDetails, fetchReviewedFiles, putReviewedFile, deleteReviewedFile, type GitHubDetails } from '../../lib/api';
 import type { LineSelection } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
 
@@ -68,6 +68,41 @@ export function DiffPage() {
     const port = window.location.port ? ` :${window.location.port}` : '';
     document.title = `${info.name} @ ${info.description}${port} · diffity`;
   }, [info?.name, info?.description]);
+
+  // Persisted "viewed" marks: restore entries whose fingerprint still matches
+  // the file's current diff — files changed since being marked come back unviewed.
+  const fingerprintByPath = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const file of diff?.files ?? []) {
+      map.set(getFilePath(file), fileFingerprint(file));
+    }
+    return map;
+  }, [diff]);
+
+  const { data: persistedReviewed } = useQuery({
+    queryKey: ['reviewed-files', sessionId],
+    queryFn: () => fetchReviewedFiles(sessionId!),
+    enabled: !!sessionId && reviewsEnabled,
+    staleTime: Infinity,
+  });
+
+  const reviewedRestoredRef = useRef(false);
+  useEffect(() => {
+    if (reviewedRestoredRef.current || !diff || !persistedReviewed) {
+      return;
+    }
+    reviewedRestoredRef.current = true;
+    const restored = new Set<string>();
+    for (const entry of persistedReviewed) {
+      if (fingerprintByPath.get(entry.filePath) === entry.fingerprint) {
+        restored.add(entry.filePath);
+      }
+    }
+    if (restored.size > 0) {
+      setReviewedFiles(restored);
+      setCollapsedFiles((prev) => new Set([...prev, ...restored]));
+    }
+  }, [diff, persistedReviewed, fingerprintByPath]);
 
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
   const threads = reviewsEnabled && serverThreads ? serverThreads : [];
@@ -153,6 +188,12 @@ export function DiffPage() {
       }
       return next;
     });
+    if (sessionId && reviewsEnabled) {
+      const persist = reviewed
+        ? putReviewedFile(sessionId, path, fingerprintByPath.get(path) ?? '')
+        : deleteReviewedFile(sessionId, path);
+      persist.catch(() => {});
+    }
     if (reviewed) {
       setCollapsedFiles((prev) => {
         const next = new Set(prev);
@@ -166,7 +207,7 @@ export function DiffPage() {
         return next;
       });
     }
-  }, []);
+  }, [sessionId, reviewsEnabled, fingerprintByPath]);
 
   const getCurrentFilePath = useCallback((): string | null => {
     if (!diff) {

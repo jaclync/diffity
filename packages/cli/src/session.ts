@@ -42,6 +42,13 @@ export function findOrCreateSession(ref: string): Session {
     WHERE session_id IN (SELECT id FROM review_sessions WHERE ref = ? AND id != ?)
   `).run(id, ref, id);
 
+  // Viewed-file marks follow the same lifecycle. Their fingerprints still
+  // invalidate individually when a file's diff content changes.
+  db.prepare(`
+    UPDATE OR REPLACE reviewed_files SET session_id = ?
+    WHERE session_id IN (SELECT id FROM review_sessions WHERE ref = ? AND id != ?)
+  `).run(id, ref, id);
+
   const session: Session = { id, ref, headHash };
   writeFileSync(sessionFilePath(), JSON.stringify(session));
   return session;

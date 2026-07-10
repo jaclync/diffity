@@ -13,6 +13,7 @@ import {
 } from './threads.js';
 import { getCurrentSession } from './session.js';
 import { getDescriptionState, saveDescription } from './descriptions.js';
+import { getReviewedFiles, setReviewedFile, removeReviewedFile } from './reviewed-files.js';
 import { sendJson, sendError, readBody, withJsonBody } from './http-utils.js';
 
 export function handleReviewRoute(req: IncomingMessage, res: ServerResponse, pathname: string, url: URL): boolean {
@@ -38,6 +39,42 @@ export function handleReviewRoute(req: IncomingMessage, res: ServerResponse, pat
         sendError(res, 500, `Failed to save description: ${err}`);
       }
     })();
+    return true;
+  }
+
+  if (pathname === '/api/reviewed-files' && req.method === 'GET') {
+    const sid = url.searchParams.get('session');
+    if (!sid) {
+      sendError(res, 400, 'Missing session parameter');
+      return true;
+    }
+    sendJson(res, getReviewedFiles(sid));
+    return true;
+  }
+
+  if (pathname === '/api/reviewed-files' && req.method === 'PUT') {
+    withJsonBody(res, req, 'Failed to mark file reviewed', (body) => {
+      const { sessionId: sid, filePath, fingerprint } = body;
+      if (!sid || !filePath) {
+        sendError(res, 400, 'Missing sessionId or filePath');
+        return;
+      }
+      setReviewedFile(sid as string, filePath as string, (fingerprint as string) ?? '');
+      sendJson(res, { ok: true });
+    });
+    return true;
+  }
+
+  if (pathname === '/api/reviewed-files' && req.method === 'DELETE') {
+    withJsonBody(res, req, 'Failed to unmark file reviewed', (body) => {
+      const { sessionId: sid, filePath } = body;
+      if (!sid || !filePath) {
+        sendError(res, 400, 'Missing sessionId or filePath');
+        return;
+      }
+      removeReviewedFile(sid as string, filePath as string);
+      sendJson(res, { ok: true });
+    });
     return true;
   }
 
