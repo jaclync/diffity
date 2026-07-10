@@ -74,6 +74,13 @@ function migrateDb(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_tours_session ON tours(session_id);
     CREATE INDEX IF NOT EXISTS idx_tour_steps_tour ON tour_steps(tour_id);
+
+    CREATE TABLE IF NOT EXISTS pr_descriptions (
+      branch TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 

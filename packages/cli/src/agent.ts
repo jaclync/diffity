@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import type { Command } from 'commander';
 import pc from 'picocolors';
@@ -14,6 +14,7 @@ import {
   type Thread,
 } from './threads.js';
 import { createTour, addTourStep, updateTourStatus } from './tours.js';
+import { getDescriptionState, saveDescription } from './descriptions.js';
 
 function requireSession() {
   if (!isGitRepo()) {
@@ -93,6 +94,8 @@ Examples:
   $ diffity agent resolve abc123 --summary "Added null check"
   $ diffity agent reply abc123 --body "Good catch, fixed"
   $ diffity agent general-comment --body "Overall this looks good, just a few nits"
+  $ diffity agent description-show
+  $ diffity agent description-set --title "Fix login crash" --body-file /tmp/desc.md
   $ diffity agent tour-start --topic "How does auth work?" --body "Overview of the auth flow"
   $ diffity agent tour-step --tour <id> --file src/auth.ts --line 10 --body "Entry point"
   $ diffity agent tour-done --tour <id>`);
@@ -236,6 +239,75 @@ Examples:
         process.exit(0);
       }
       process.stdout.write(raw);
+    });
+
+  agent
+    .command('description-show')
+    .description('Show the PR description (from GitHub if a PR exists, otherwise the local draft)')
+    .option('--json', 'Output as JSON')
+    .action((opts) => {
+      if (!isGitRepo()) {
+        console.error(pc.red('Error: Not a git repository'));
+        process.exit(1);
+      }
+      const state = getDescriptionState();
+      if (opts.json) {
+        console.log(JSON.stringify(state, null, 2));
+        return;
+      }
+      const sourceLabel = state.source === 'pr'
+        ? pc.green(`PR #${state.prNumber} (${state.prUrl})${state.dirty ? pc.yellow(' [local draft not pushed]') : ''}`)
+        : pc.yellow(`Local draft (no PR yet, branch: ${state.branch})`);
+      console.log(`${pc.bold('Source:')} ${sourceLabel}`);
+      console.log(`${pc.bold('Title:')} ${state.title || pc.dim('(none)')}`);
+      console.log(`${pc.bold('Body:')}`);
+      console.log(state.body || pc.dim('(empty)'));
+    });
+
+  agent
+    .command('description-set')
+    .description('Set the PR description; pushes to GitHub when a PR exists, otherwise saves a local draft')
+    .option('--title <text>', 'PR title (kept unchanged if omitted)')
+    .option('--body <text>', 'Description body in markdown')
+    .option('--body-file <path>', 'Read the body from a file ("-" for stdin)')
+    .option('--json', 'Output as JSON')
+    .action((opts) => {
+      if (!isGitRepo()) {
+        console.error(pc.red('Error: Not a git repository'));
+        process.exit(1);
+      }
+      if (!opts.body && !opts.bodyFile) {
+        console.error(pc.red('Error: Provide --body or --body-file'));
+        process.exit(1);
+      }
+      let body: string = opts.body ?? '';
+      if (opts.bodyFile) {
+        try {
+          body = opts.bodyFile === '-'
+            ? readFileSync(0, 'utf-8')
+            : readFileSync(opts.bodyFile, 'utf-8');
+        } catch (err) {
+          console.error(pc.red(`Error: Failed to read --body-file: ${err}`));
+          process.exit(1);
+        }
+      }
+      let result;
+      try {
+        result = saveDescription({ title: opts.title, body });
+      } catch (err) {
+        console.error(pc.red(`Error: Failed to save description: ${err}`));
+        process.exit(1);
+      }
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      if (result.synced) {
+        console.log(pc.green(`Description updated on PR #${result.prNumber} (${result.prUrl})`));
+      } else {
+        console.log(pc.green(`Description saved as local draft for branch "${result.branch}"`));
+        console.log(pc.dim('It will be available to push once a PR exists. Create one with: gh pr create --title <t> --body-file <f>'));
+      }
     });
 
   agent

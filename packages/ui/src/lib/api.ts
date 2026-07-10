@@ -307,3 +307,25 @@ export async function fetchTreeFileContent(filePath: string): Promise<string[]> 
   );
   return json.content;
 }
+
+export interface DescriptionState {
+  source: 'pr' | 'local';
+  branch: string;
+  title: string;
+  body: string;
+  prNumber?: number;
+  prUrl?: string;
+  dirty: boolean;
+}
+
+export async function fetchDescription(): Promise<DescriptionState> {
+  return apiFetch('/api/description');
+}
+
+export async function saveDescription(input: { title?: string; body: string }): Promise<DescriptionState & { synced: boolean }> {
+  return apiFetch('/api/description', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}

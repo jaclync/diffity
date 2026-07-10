@@ -2,3 +2,5 @@ export type { GitHubRemote, GitHubDetails, PrComment, PushResult, PulledThread }
 export { detectRemote, fetchDetails, isCliInstalled, isAuthenticated } from './detection.js';
 export { getFiles, getComments, getCommentCount, pushComments, pullComments } from './pr.js';
 export { isGitHubPrUrl, parseGitHubPrUrl, checkoutPr, getPrBaseRef } from './pr-url.js';
+export type { PrDescriptionRemote } from './types.js';
+export { fetchPrDescription, updatePrDescription } from './description.js';

@@ -27,6 +27,13 @@ export interface PulledThread {
   comments: PulledThreadComment[];
 }
 
+export interface PrDescriptionRemote {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+}
+
 export interface PrComment {
   filePath: string;
   side: 'LEFT' | 'RIGHT';

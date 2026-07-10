@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ParsedDiff } from '@diffity/parser';
 import { FileBlock, LARGE_DIFF_LINE_THRESHOLD } from './file-block';
 import { GeneralComments } from '../comments/general-comments';
+import { PrDescription } from '../layout/pr-description';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { type ViewMode, getFilePath } from '../../lib/diff-utils';
 import type { CommentThread, LineSelection } from '../comments/types';
@@ -260,6 +261,7 @@ export function DiffView(props: DiffViewProps) {
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto pb-12"
     >
+      <PrDescription />
       {commentsEnabled && (
         <GeneralComments
           threads={threads}
