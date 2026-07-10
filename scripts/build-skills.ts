@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { existsSync, readdirSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { readSkills, renderSkill, writeFile, cleanDir } from './lib/utils.js';
@@ -30,8 +31,23 @@ writeFile(
 );
 console.log(`Skills hash: ${skillsHash}`);
 
-cleanDir(globalClaudeSkillsDir);
-for (const skill of skills) {
-  claudeCode(skill, homeDir, { binary: 'diffity-dev', namePrefix: 'diffity-dev', slashPrefix: '/diffity-dev-', installHint: 'run `npm run dev` from the diffity repo root to link the CLI' });
+// Only remove our own diffity-dev-* entries — never wipe the whole directory,
+// which may contain the user's unrelated skills.
+if (existsSync(globalClaudeSkillsDir)) {
+  for (const entry of readdirSync(globalClaudeSkillsDir)) {
+    if (entry.startsWith('diffity-dev-')) {
+      rmSync(join(globalClaudeSkillsDir, entry), { recursive: true, force: true });
+    }
+  }
 }
-console.log(`Synced ${skills.length} dev skills to ~/.claude/skills/`);
+// Only sync dev skills for contributors who have linked the dev binary
+// (via npm run dev) — a plain `npm run build` shouldn't touch user skills.
+const devBinaryLinked = existsSync(join(rootDir, '.bin', 'diffity-dev'));
+if (devBinaryLinked) {
+  for (const skill of skills) {
+    claudeCode(skill, homeDir, { binary: 'diffity-dev', namePrefix: 'diffity-dev', slashPrefix: '/diffity-dev-', installHint: 'run `npm run dev` from the diffity repo root to link the CLI' });
+  }
+  console.log(`Synced ${skills.length} dev skills to ~/.claude/skills/`);
+} else {
+  console.log('Skipped dev skills sync (diffity-dev not linked; run `npm run dev` to enable)');
+}
