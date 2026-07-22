@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GENERAL_THREAD_FILE_PATH, isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentThread as CommentThreadType } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
@@ -18,6 +18,12 @@ export function GeneralComments(props: GeneralCommentsProps) {
   const threads = allThreads.filter(t => t.filePath === GENERAL_THREAD_FILE_PATH);
   const [isExpanded, setIsExpanded] = useState(threads.length > 0);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsExpanded(true);
+    window.addEventListener('diffity:show-general-comments', handler);
+    return () => window.removeEventListener('diffity:show-general-comments', handler);
+  }, []);
 
   return (
     <div className={`rounded-lg mx-4 mt-4 overflow-hidden ${threads.length > 0 ? 'bg-accent/5' : 'bg-bg-secondary'}`}>

@@ -6,6 +6,7 @@ import { GeneralComments } from '../comments/general-comments';
 import { PrDescription } from '../layout/pr-description';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { type ViewMode, getFilePath } from '../../lib/diff-utils';
+import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import type { CommentThread, LineSelection } from '../comments/types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
 
@@ -172,6 +173,13 @@ export function DiffView(props: DiffViewProps) {
           element.scrollIntoView({ behavior: 'instant', block: 'center' });
           flashThreadElement(element);
         });
+        return;
+      }
+
+      if (filePath === GENERAL_THREAD_FILE_PATH) {
+        // The general comments section is collapsed — expand it, then scroll.
+        window.dispatchEvent(new CustomEvent('diffity:show-general-comments'));
+        settleScrollToElement(`[data-thread-id="${threadId}"]`, 'center', flashThreadElement);
         return;
       }
 

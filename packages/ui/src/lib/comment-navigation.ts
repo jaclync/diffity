@@ -7,6 +7,23 @@ export function getUnresolvedFileThreads(threads: CommentThread[]): CommentThrea
   );
 }
 
+// General threads render above the file list, so they come first in
+// navigation order.
+export function getUnresolvedThreadsForNavigation(threads: CommentThread[]): CommentThread[] {
+  const unresolved = threads.filter(thread => !isThreadResolved(thread));
+  return [
+    ...unresolved.filter(thread => thread.filePath === GENERAL_THREAD_FILE_PATH),
+    ...unresolved.filter(thread => thread.filePath !== GENERAL_THREAD_FILE_PATH),
+  ];
+}
+
+// Permalinks use a `#thread=<id>` fragment so they survive any query params
+// (ref, commit, theme) already present in the URL.
+export function parseThreadHash(hash: string): string | null {
+  const match = /^#thread=(.+)$/.exec(hash);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 export function getThreadLineLabel(thread: CommentThread): string {
   return thread.startLine === thread.endLine
     ? `L${thread.startLine}`

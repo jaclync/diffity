@@ -19,6 +19,7 @@ import {
 } from '../../queries/tree';
 import { diffOptions } from '../../queries/diff';
 import { getFilePath } from '../../lib/diff-utils';
+import { parseThreadHash } from '../../lib/comment-navigation';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { FileBlock } from '../diff/file-block';
 import { useTheme } from '../../hooks/use-theme';
@@ -282,6 +283,12 @@ export function TreePage(props: TreePageProps) {
 
   const handleScrollToThread = useCallback(
     async (threadId: string, filePath: string) => {
+      if (filePath === GENERAL_THREAD_FILE_PATH) {
+        // General threads have no surface in the tree browser to navigate to.
+        scrollToThreadElement(threadId);
+        return;
+      }
+
       const isPathComment = filePath.startsWith('__path__:');
       let targetPath = filePath;
       let targetType: 'file' | 'dir' = 'file';
@@ -320,6 +327,24 @@ export function TreePage(props: TreePageProps) {
     },
     [navPath, navType, queryClient, paths, scrollToThreadElement, setNav],
   );
+
+  // Deep link: #thread=<id> navigates to the thread's file and scrolls to it.
+  const hashThreadHandledRef = useRef(false);
+  useEffect(() => {
+    if (hashThreadHandledRef.current || threads.length === 0) {
+      return;
+    }
+    const threadId = parseThreadHash(window.location.hash);
+    hashThreadHandledRef.current = true;
+    if (!threadId) {
+      return;
+    }
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread) {
+      return;
+    }
+    handleScrollToThread(thread.id, thread.filePath);
+  }, [threads, handleScrollToThread]);
 
   const handleRefreshTree = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['tree-paths'] });

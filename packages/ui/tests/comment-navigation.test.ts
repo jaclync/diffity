@@ -5,6 +5,8 @@ import {
   buildThreadCountsByFile,
   getThreadLineLabel,
   getThreadPreview,
+  getUnresolvedThreadsForNavigation,
+  parseThreadHash,
 } from '../src/lib/comment-navigation';
 
 function makeThread(overrides: Partial<CommentThread> = {}): CommentThread {
@@ -57,6 +59,38 @@ describe('buildThreadCountsByFile', () => {
     ]);
 
     expect(Array.from(counts.entries())).toEqual([['src/a.ts', 2]]);
+  });
+});
+
+describe('getUnresolvedThreadsForNavigation', () => {
+  it('includes general threads first, then file threads, excluding resolved', () => {
+    const ordered = getUnresolvedThreadsForNavigation([
+      makeThread({ id: 'file-1', filePath: 'src/a.ts' }),
+      makeThread({ id: 'resolved', filePath: 'src/b.ts', status: 'resolved' }),
+      makeThread({ id: 'general-1', filePath: '__general__' }),
+    ]);
+
+    expect(ordered.map(t => t.id)).toEqual(['general-1', 'file-1']);
+  });
+
+  it('keeps navigation available when only general threads exist', () => {
+    const ordered = getUnresolvedThreadsForNavigation([
+      makeThread({ id: 'general-1', filePath: '__general__' }),
+    ]);
+
+    expect(ordered).toHaveLength(1);
+  });
+});
+
+describe('parseThreadHash', () => {
+  it('extracts the thread id from a permalink hash', () => {
+    expect(parseThreadHash('#thread=abc-123')).toBe('abc-123');
+  });
+
+  it('returns null for other hashes', () => {
+    expect(parseThreadHash('')).toBeNull();
+    expect(parseThreadHash('#thread=')).toBeNull();
+    expect(parseThreadHash('#something-else')).toBeNull();
   });
 });
 
