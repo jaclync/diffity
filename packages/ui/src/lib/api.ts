@@ -106,8 +106,8 @@ export function fetchOverview(): Promise<Overview> {
   return apiFetch('/api/overview');
 }
 
-export function fetchCommits(skip = 0, count = 10, search?: string): Promise<CommitsPage> {
-  return apiFetch(buildUrl('/api/commits', { skip: String(skip), count: String(count), search }));
+export function fetchCommits(skip = 0, count = 10, search?: string, range?: string): Promise<CommitsPage> {
+  return apiFetch(buildUrl('/api/commits', { skip: String(skip), count: String(count), search, range }));
 }
 
 export async function fetchSession(): Promise<{ id: string; ref: string; headHash: string } | null> {

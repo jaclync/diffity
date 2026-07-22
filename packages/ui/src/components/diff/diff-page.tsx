@@ -8,6 +8,7 @@ import { useKeyboard } from '../../hooks/use-keyboard';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
 import { Toolbar } from '../layout/toolbar';
+import { CommitPicker } from '../layout/commit-picker';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
 import { ShortcutModal } from '../layout/shortcut-modal';
@@ -16,15 +17,19 @@ import { CheckCircleIcon } from '../icons/check-circle-icon';
 import { PageLoader } from '../layout/skeleton';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
 import { type ViewMode, getFilePath, getAutoCollapsedPaths, fileFingerprint } from '../../lib/diff-utils';
-import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
+import { buildFirstOpenThreadByFile, buildThreadCountsByFile, parseThreadHash } from '../../lib/comment-navigation';
 import { getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
 import { fetchGitHubDetails, fetchReviewedFiles, putReviewedFile, deleteReviewedFile, type GitHubDetails } from '../../lib/api';
 import type { LineSelection } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
 
+const WORKING_TREE_REFS = new Set(['work', '.', 'staged', 'unstaged']);
+
 export function DiffPage() {
-  const { ref: refParam, theme: initialTheme, view: initialViewMode } = useLoaderData<{
+  const { ref: refParam, baseRef: baseRefParam, commit: commitParam, theme: initialTheme, view: initialViewMode } = useLoaderData<{
     ref: string;
+    baseRef: string;
+    commit: string | null;
     theme: 'light' | 'dark' | null;
     view: 'split' | 'unified' | null;
   }>();
@@ -44,6 +49,15 @@ export function DiffPage() {
   const diffViewRef = useRef<DiffViewHandle>(null);
   const currentFileIdx = useRef(0);
   const initializedDiffRef = useRef<typeof diff>(null);
+
+  // Scope the commit picker to the session's range (e.g. main..HEAD when
+  // started as `diffity main`); working-tree views list recent history.
+  const commitsRange = useMemo(() => {
+    if (WORKING_TREE_REFS.has(baseRefParam)) {
+      return undefined;
+    }
+    return baseRefParam.includes('..') ? baseRefParam : `${baseRefParam}..HEAD`;
+  }, [baseRefParam]);
 
   const reviewsEnabled = !!info?.capabilities?.reviews;
   const sessionId = info?.sessionId ?? null;
@@ -325,6 +339,25 @@ export function DiffPage() {
     diffViewRef.current?.scrollToThread(threadId, filePath);
   }, []);
 
+  // Deep link: #thread=<id> scrolls to that thread once the diff and
+  // threads have loaded.
+  const hashThreadHandledRef = useRef(false);
+  useEffect(() => {
+    if (hashThreadHandledRef.current || !diff || (reviewsEnabled && !threadsFetched)) {
+      return;
+    }
+    const threadId = parseThreadHash(window.location.hash);
+    hashThreadHandledRef.current = true;
+    if (!threadId) {
+      return;
+    }
+    const thread = threads.find(t => t.id === threadId);
+    if (!thread) {
+      return;
+    }
+    requestAnimationFrame(() => handleScrollToThread(thread.id, thread.filePath));
+  }, [diff, reviewsEnabled, threadsFetched, threads, handleScrollToThread]);
+
   const handleSidebarCommentedFileClick = useCallback((path: string) => {
     const threadId = firstOpenThreadByFile.get(path);
     if (!threadId) {
@@ -393,6 +426,7 @@ export function DiffPage() {
         repoName={info?.name || null}
         branch={info?.branch || null}
         description={info?.description || null}
+        commitPicker={<CommitPicker currentCommit={commitParam} range={commitsRange} />}
         githubDetails={githubDetails}
         sessionId={sessionId}
         onGitHubPulled={() => queryClient.invalidateQueries({ queryKey: ['threads'] })}

@@ -38,7 +38,9 @@ export function resolveDiffArgs(ref: string): RefDiffArgs {
     case 'work':
       return { type: 'args', args: ['HEAD'], includeUntracked: true };
     default:
-      return { type: 'args', args: [normalizeRef(ref)], includeUntracked: true };
+      // Range refs (a..b, a...b) diff two committed states — the working
+      // tree's untracked files are not part of either side.
+      return { type: 'args', args: [normalizeRef(ref)], includeUntracked: !ref.includes('..') };
   }
 }
 

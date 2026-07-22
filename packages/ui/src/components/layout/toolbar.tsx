@@ -34,6 +34,7 @@ interface ToolbarProps {
   repoName: string | null;
   branch: string | null;
   description: string | null;
+  commitPicker?: React.ReactNode;
   githubDetails?: { prNumber: number; prTitle: string; prUrl: string; prCreatedAt: string; headSha: string; commentCount: number } | null;
   sessionId?: string | null;
   onGitHubPulled?: () => void;
@@ -128,6 +129,7 @@ export function Toolbar(props: ToolbarProps) {
     repoName,
     branch,
     description,
+    commitPicker,
     githubDetails,
     sessionId,
     onGitHubPulled,
@@ -153,6 +155,7 @@ export function Toolbar(props: ToolbarProps) {
             {branch}
           </span>
         )}
+        {commitPicker}
         {description && <span className="text-text-muted truncate hidden lg:inline">{description}</span>}
         {diff && (
           <span className="inline-flex items-center bg-bg-tertiary rounded-md overflow-hidden text-text-muted shrink-0">

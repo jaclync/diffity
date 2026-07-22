@@ -100,4 +100,39 @@ describe('getDiffFiles', () => {
     git('checkout -- base.txt');
     execSync(`rm "${join(repoDir, 'untracked-file.txt')}"`, { stdio: 'pipe' });
   });
+
+  it('excludes untracked files for range refs', async () => {
+    const { getDiffFiles } = await import('../src/diff.js');
+    writeFile('untracked-file.txt', 'untracked\n');
+
+    const files = getDiffFiles('main..feature');
+    expect(files).toContain('feature.txt');
+    expect(files).not.toContain('untracked-file.txt');
+
+    execSync(`rm "${join(repoDir, 'untracked-file.txt')}"`, { stdio: 'pipe' });
+  });
+
+  it('diffs a single commit via hash^..hash', async () => {
+    const { getDiffFiles } = await import('../src/diff.js');
+    const head = execSync('git rev-parse HEAD', { cwd: repoDir, stdio: 'pipe' })
+      .toString()
+      .trim();
+
+    const files = getDiffFiles(`${head}^..${head}`);
+    expect(files).toContain('feature.txt');
+    expect(files).toContain('base.txt');
+    expect(files).not.toContain('master-only.txt');
+  });
+});
+
+describe('getRecentCommits', () => {
+  it('limits commits to the given range', async () => {
+    const { getRecentCommits } = await import('../src/commits.js');
+
+    const all = getRecentCommits({ count: 10 });
+    const ranged = getRecentCommits({ count: 10, range: 'main..feature' });
+
+    expect(all.length).toBeGreaterThan(ranged.length);
+    expect(ranged.map((c) => c.message)).toEqual(['feature changes']);
+  });
 });

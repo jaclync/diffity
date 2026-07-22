@@ -35,6 +35,7 @@ import {
   getTreeFingerprint,
   getWorkingTreeFileContent,
   getWorkingTreeRawFile,
+  isValidGitRef,
   WORKING_TREE_REFS,
 } from '@diffity/git';
 import {
@@ -149,6 +150,10 @@ function descriptionForRef(ref: string): string {
     return labels[ref] || ref;
   }
   if (ref.includes('..')) {
+    const singleCommit = /^(.+)\^\.\.\1$/.exec(ref);
+    if (singleCommit) {
+      return `Commit ${singleCommit[1].slice(0, 7)}`;
+    }
     return ref;
   }
   return `Changes from ${ref}`;
@@ -327,8 +332,13 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
           const count = parseInt(url.searchParams.get('count') || '10', 10);
           const skip = parseInt(url.searchParams.get('skip') || '0', 10);
           const search = url.searchParams.get('search') || undefined;
+          const range = url.searchParams.get('range') || undefined;
+          if (range && !isValidGitRef(range)) {
+            sendError(res, 400, `Invalid range: ${range}`);
+            return;
+          }
           try {
-            const commits = getRecentCommits({ count, skip, search });
+            const commits = getRecentCommits({ count, skip, search, range });
             sendJson(res, { commits, hasMore: commits.length === count });
           } catch (err) {
             sendError(res, 500, `Failed to get commits: ${err}`);

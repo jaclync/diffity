@@ -8,7 +8,11 @@ import { ErrorPage } from "../components/error-page";
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const url = new URL(request.url);
-  const ref = url.searchParams.get("ref") || "work";
+  const baseRef = url.searchParams.get("ref") || "work";
+  // ?commit=<hash> views a single commit's changes (GitHub-style), layered
+  // on top of whatever ref the instance was started with.
+  const commit = url.searchParams.get("commit");
+  const ref = commit ? `${commit}^..${commit}` : baseRef;
   const theme = url.searchParams.get("theme") as "light" | "dark" | null;
   const view = url.searchParams.get("view") as "split" | "unified" | null;
 
@@ -17,7 +21,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     queryClient.ensureQueryData(repoInfoOptions(ref)),
   ]);
 
-  return { ref, theme, view };
+  return { ref, baseRef, commit, theme, view };
 }
 
 export default function DiffRoute({ loaderData }: Route.ComponentProps) {

@@ -5,10 +5,12 @@ interface CommitListProps {
   initialCommits: Commit[];
   initialHasMore: boolean;
   onCommitClick: (hash: string) => void;
+  range?: string;
+  activeHash?: string | null;
 }
 
 export function CommitList(props: CommitListProps) {
-  const { initialCommits, initialHasMore, onCommitClick } = props;
+  const { initialCommits, initialHasMore, onCommitClick, range, activeHash } = props;
   const [commits, setCommits] = useState(initialCommits);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(false);
@@ -26,26 +28,26 @@ export function CommitList(props: CommitListProps) {
       setLoading(true);
       try {
         const trimmed = value.trim();
-        const page = await fetchCommits(0, 10, trimmed || undefined);
+        const page = await fetchCommits(0, 10, trimmed || undefined, range);
         setCommits(page.commits);
         setHasMore(page.hasMore);
       } finally {
         setLoading(false);
       }
     }, 300);
-  }, []);
+  }, [range]);
 
   const loadMore = useCallback(async () => {
     setLoading(true);
     try {
       const trimmed = search.trim();
-      const page = await fetchCommits(commits.length, 10, trimmed || undefined);
+      const page = await fetchCommits(commits.length, 10, trimmed || undefined, range);
       setCommits((prev) => [...prev, ...page.commits]);
       setHasMore(page.hasMore);
     } finally {
       setLoading(false);
     }
-  }, [commits.length, search]);
+  }, [commits.length, search, range]);
 
   return (
     <div>
@@ -68,7 +70,7 @@ export function CommitList(props: CommitListProps) {
             <li key={commit.hash}>
               <button
                 onClick={() => onCommitClick(commit.hash)}
-                className="w-full text-left px-4 py-3 hover:bg-bg-tertiary transition-colors flex items-center gap-3"
+                className={`w-full text-left px-4 py-3 hover:bg-bg-tertiary transition-colors flex items-center gap-3${commit.hash === activeHash ? ' bg-accent/10' : ''}`}
               >
                 <code className="text-xs font-mono text-accent shrink-0">
                   {commit.shortHash}
