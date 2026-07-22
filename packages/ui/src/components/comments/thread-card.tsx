@@ -4,7 +4,15 @@ import { isThreadResolved } from './types';
 import { CommentBubble } from './comment-bubble';
 import { CommentForm } from './comment-form';
 import { TrashIcon } from '../icons/trash-icon';
+import { LinkIcon } from '../icons/link-icon';
+import { CheckIcon } from '../icons/check-icon';
+import { useCopy } from '../../hooks/use-copy';
 import { cn } from '../../lib/cn';
+
+export function threadPermalink(threadId: string): string {
+  const { origin, pathname, search } = window.location;
+  return `${origin}${pathname}${search}#thread=${threadId}`;
+}
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -36,6 +44,7 @@ export function ThreadCard(props: ThreadCardProps) {
   } = props;
   const [showReply, setShowReply] = useState(false);
   const resolved = isThreadResolved(thread);
+  const { copied: linkCopied, copy: copyLink } = useCopy();
 
   return (
     <div className={cn('rounded-lg overflow-hidden', className)} data-thread-id={thread.id}>
@@ -62,6 +71,13 @@ export function ThreadCard(props: ThreadCardProps) {
             )
           )}
           {headerRight}
+          <button
+            onClick={() => copyLink(threadPermalink(thread.id))}
+            className="text-text-muted hover:text-text-secondary transition-colors cursor-pointer ml-1"
+            title="Copy link to thread"
+          >
+            {linkCopied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <LinkIcon className="w-3.5 h-3.5" />}
+          </button>
           <button
             onClick={onDeleteThread}
             className="text-text-muted hover:text-deleted transition-colors cursor-pointer ml-1"
